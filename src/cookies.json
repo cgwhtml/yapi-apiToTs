@@ -1,0 +1,30 @@
+[
+  {
+    "name": "_yapi_uid",
+    "value": "386",
+    "domain": "yapi.gydev.cn",
+    "path": "/",
+    "expires": 1721028374.136582,
+    "size": 12,
+    "httpOnly": true,
+    "secure": false,
+    "session": false,
+    "priority": "Medium",
+    "sameParty": false,
+    "sourceScheme": "NonSecure"
+  },
+  {
+    "name": "_yapi_token",
+    "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOjM4NiwiaWF0IjoxNzIwNDIzNTcxLCJleHAiOjE3MjEwMjgzNzF9.d5HgY-oFBOqfMlAugoyhg_dlhNISwGT-S0jg1Ri_j0Y",
+    "domain": "yapi.gydev.cn",
+    "path": "/",
+    "expires": 1721028374.135497,
+    "size": 152,
+    "httpOnly": true,
+    "secure": false,
+    "session": false,
+    "priority": "Medium",
+    "sameParty": false,
+    "sourceScheme": "NonSecure"
+  }
+]

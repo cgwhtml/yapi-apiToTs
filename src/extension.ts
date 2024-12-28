@@ -13,6 +13,7 @@ const localStorageFilePath = path.resolve(__dirname, 'localStorage.json');
 
 export function activate(context: vscode.ExtensionContext) {
 	let disposable = vscode.commands.registerCommand('extension.apiToTs', async (URI) => {
+		vscode.window.showErrorMessage('开始');
 		useExtension(URI).then(() => {
 		}).catch(err => {
 			vscode.window.showErrorMessage(err);
@@ -25,14 +26,30 @@ export function activate(context: vscode.ExtensionContext) {
 
 export function deactivate() { }
 
-const useExtension =async (URI:any) => {
+function getChromePath() {
+	switch (process.platform) {
+			case 'win32':
+					return 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+			case 'darwin':
+					return '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+			case 'linux':
+					return '/usr/bin/google-chrome';
+			default:
+					throw new Error('Unsupported platform');
+	}
+}
+const useExtension = async (URI: any) => {
+	console.log(getChromePath(),'谷歌安装路径')
 	try {
-		const browser = await puppeteer.launch({ headless: true });
+		const browser = await puppeteer.launch({
+			headless: true,
+			executablePath: getChromePath(),
+			args: ['--no-sandbox', '--disable-setuid-sandbox'],
+		});
 		const page = await browser.newPage();
 		let isLogin=false
 		  // 检查 token 是否有效
 		if (fs.existsSync(cookiesFilePath) && fs.existsSync(localStorageFilePath)) {
-
 			const cookies = JSON.parse(fs.readFileSync(cookiesFilePath, 'utf8'));
 			await page.setCookie(...cookies);
 
@@ -49,7 +66,10 @@ const useExtension =async (URI:any) => {
 		}
 		const isTokenValid = await checkTokenValidity(page);
 		if (!isTokenValid && !isLogin) {
-			await loginModule(page);
+			isLogin = await loginModule(page);
+			if (!isLogin) {
+				return;
+			}
 		}
 		const platform = await vscode.window.showQuickPick(['微信小程序', 'ccs', 'finclip'], {
 			placeHolder: '必须选择一个平台'
@@ -263,46 +283,54 @@ function toLowerCamelCase(str:string) {
 
 async function checkTokenValidity(page: any) {
   // 检查页面中特定的用户菜单元素
-	await page.goto('http://yapi.gydev.cn/project/90/interface/api', { waitUntil: 'networkidle2' });
-	const userMenu = await page.$('.left-menu'); // 替换为实际的选择器
-  return userMenu !== null;
+	try {
+		await page.goto('http://yapi.gydev.cn/project/90/interface/api', { waitUntil: 'networkidle2' });
+		const userMenu = await page.$('.left-menu'); // 替换为实际的选择器
+		return userMenu !== null;
+	} catch (error) {
+		return false;
+	}
 }
 
 async function loginModule(page: any): Promise<boolean> {
-	let isLogin=false
-	const email = await vscode.window.showInputBox({
-		prompt: 'Enter account to scrape',
-		placeHolder: '请输入yapi账号',
-		ignoreFocusOut:true,
+	return new Promise(async (resolve, reject) => {
+		const email = await vscode.window.showInputBox({
+			prompt: 'Enter account to scrape',
+			placeHolder: '请输入yapi账号',
+			ignoreFocusOut:true,
+		})
+		const password = await vscode.window.showInputBox({
+			prompt: 'Enter account to scrape',
+			placeHolder: '请输入yapi密码',
+			password: true,
+			ignoreFocusOut:true,
+		})
+		if (!email || !password) {
+			vscode.window.showErrorMessage('请输入账号密码');
+			resolve(false);
+		}
+		await page.goto(loginUrl, { waitUntil: 'networkidle2' });
+
+		await page.type('#email', email);
+		await page.type('#password', password);
+		vscode.window.withProgress({
+			location: vscode.ProgressLocation.Notification,
+			title: "Loading...",
+		}, (progress, token) => {
+			var p=Promise.all([
+				page.click('.login-form-button'),
+				page.waitForNavigation({ waitUntil: 'networkidle2' }),
+			]).then(async (values) => {
+				const cookies = await page.cookies();
+				const localStorageData = await page.evaluate(() => JSON.stringify(localStorage));
+				fs.writeFileSync(cookiesFilePath, JSON.stringify(cookies, null, 2));
+				fs.writeFileSync(localStorageFilePath, localStorageData);
+				resolve(true);
+			}).catch(err => {
+				vscode.window.showErrorMessage('登录失败');
+				resolve(false);
+			});
+			return p;
+		});
 	})
-
-	const password = await vscode.window.showInputBox({
-		prompt: 'Enter account to scrape',
-		placeHolder: '请输入yapi密码',
-		password: true,
-		ignoreFocusOut:true,
-	})
-	if (!email || !password) {
-		vscode.window.showErrorMessage('请输入账号密码');
-		return isLogin;
-	}
-
-	await page.goto(loginUrl, { waitUntil: 'networkidle2' });
-
-	await page.type('#email', email);
-	await page.type('#password', password);
-	await Promise.all([
-		page.click('.login-form-button'),
-		page.waitForNavigation({ waitUntil: 'networkidle2' }),
-	]).then(() => {
-		isLogin=true
-	}).catch(err => {
-		vscode.window.showErrorMessage('登录失败');
-		return;
-	});
-	const cookies = await page.cookies();
-	const localStorageData = await page.evaluate(() => JSON.stringify(localStorage));
-	fs.writeFileSync(cookiesFilePath, JSON.stringify(cookies, null, 2));
-	fs.writeFileSync(localStorageFilePath, localStorageData);
-	return isLogin
 }
